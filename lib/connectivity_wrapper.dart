@@ -11,21 +11,13 @@
 library connectivity_wrapper;
 
 import 'dart:async';
-import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:connectivity_wrapper/src/utils/constants.dart';
-import 'package:flutter/foundation.dart';
-
-import 'src/models/address_check_options.dart';
-import 'src/models/address_check_result.dart';
 
 export 'package:connectivity_wrapper/src/widgets/connectivity_app_wrapper_widget.dart';
 export 'package:connectivity_wrapper/src/widgets/connectivity_screen_wrapper.dart';
 export 'package:connectivity_wrapper/src/widgets/connectivity_widget_wrapper.dart';
-
-export 'src/models/address_check_options.dart';
-export 'src/models/address_check_result.dart';
 
 /// Connection Status Check Result
 ///
@@ -35,51 +27,6 @@ export 'src/models/address_check_result.dart';
 enum ConnectivityStatus { CONNECTED, DISCONNECTED }
 
 class ConnectivityWrapper {
-  static List<AddressCheckOptions> get _defaultAddresses => (kIsWeb)
-      ? []
-      : List<AddressCheckOptions>.unmodifiable(
-          <AddressCheckOptions>[
-            AddressCheckOptions(
-              address: InternetAddress(
-                '1.1.1.1',
-                type: InternetAddressType.IPv4,
-              ),
-            ),
-            AddressCheckOptions(
-              address: InternetAddress(
-                '2606:4700:4700::1111',
-                type: InternetAddressType.IPv6,
-              ),
-            ),
-            AddressCheckOptions(
-              address: InternetAddress(
-                '8.8.4.4',
-                type: InternetAddressType.IPv4,
-              ),
-            ),
-            AddressCheckOptions(
-              address: InternetAddress(
-                '2001:4860:4860::8888',
-                type: InternetAddressType.IPv6,
-              ),
-            ),
-            AddressCheckOptions(
-              address: InternetAddress(
-                '208.67.222.222',
-                type: InternetAddressType.IPv4,
-              ),
-            ),
-            AddressCheckOptions(
-              address: InternetAddress(
-                '2620:0:ccc::2',
-                type: InternetAddressType.IPv6,
-              ),
-            ),
-          ],
-        );
-
-  List<AddressCheckOptions> addresses = _defaultAddresses;
-
   ConnectivityWrapper._() {
     _statusController.onListen = () {
       _maybeEmitStatusUpdate();
@@ -92,46 +39,9 @@ class ConnectivityWrapper {
 
   static final ConnectivityWrapper instance = ConnectivityWrapper._();
 
-  Future<AddressCheckResult> isHostReachable(
-    AddressCheckOptions options,
-  ) async {
-    Socket? sock;
-    try {
-      sock = await Socket.connect(
-        options.address ?? options.hostname,
-        options.port,
-        timeout: options.timeout,
-      )
-        ..destroy();
-      return AddressCheckResult(
-        options,
-        isSuccess: true,
-      );
-    } catch (e) {
-      sock?.destroy();
-      return AddressCheckResult(
-        options,
-        isSuccess: false,
-      );
-    }
-  }
-
-  List<AddressCheckResult> get lastTryResults => _lastTryResults;
-  List<AddressCheckResult> _lastTryResults = <AddressCheckResult>[];
-
   Future<bool> get isConnected async {
-    bool connected = await _checkWebConnection();
-    if (kIsWeb) return connected;
-    if (!connected) return connected;
-
-    List<Future<AddressCheckResult>> requests = [];
-
-    for (var addressOptions in addresses) {
-      requests.add(isHostReachable(addressOptions));
-    }
-    _lastTryResults = List.unmodifiable(await Future.wait(requests));
-
-    return _lastTryResults.map((result) => result.isSuccess).contains(true);
+    bool connected = await _checkConnection();
+    return connected;
   }
 
   Future<ConnectivityStatus> get connectionStatus async {
@@ -141,10 +51,12 @@ class ConnectivityWrapper {
   }
 
   ///
-  Future<bool> _checkWebConnection() async {
+  Future<bool> _checkConnection() async {
     var connectivityResult = await (Connectivity().checkConnectivity());
     if (connectivityResult == ConnectivityResult.mobile ||
-        connectivityResult == ConnectivityResult.wifi) {
+        connectivityResult == ConnectivityResult.wifi ||
+        connectivityResult == ConnectivityResult.ethernet ||
+        connectivityResult == ConnectivityResult.vpn) {
       return true;
     }
     return false;
